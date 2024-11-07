@@ -4,9 +4,9 @@
 * SPDX-License-Identifier: Apache-2.0
 */
 
-#include <zephyr.h>
-#include <sys/printk.h>
-#include <drivers/spi.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/printk.h>
+#include <zephyr/drivers/spi.h>
 
 
 #define MY_SPI_MASTER DT_NODELABEL(spi_test)
@@ -22,6 +22,7 @@ struct device * spi_dev;
 
 static void spi_init(void)
 {
+	printk("Initializng spi device\n");
 	spi_dev = DEVICE_DT_GET(MY_SPI_MASTER);
 
 	if (spi_dev == NULL) {
@@ -65,14 +66,24 @@ void spi_test_send(void)
 	}	
 }
 
-void main(void)
+static void print_banner(void)
 {
-	printk("SPIM Example\n");
+	printk("******************\n");
+	printk("     SPI TEST\n");
+	printk("******************\n\n");
+}
+
+int main(void)
+{
+	print_banner();
 	spi_init();
-	printk("After init\n");
+
+	printk("Executing main loop\n");
 	while (1) {
 		spi_test_send();
 		k_sleep(K_MSEC(1000));
 		printk(".");
 	}
+
+	return 0;
 }

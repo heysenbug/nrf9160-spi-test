@@ -1,0 +1,10 @@
+sample:
+  description: Application to test SPI interface of NRF9160
+  name: SPI Test
+tests:
+  app.spi-test:
+    sysbuild: true
+    build_only: true
+    integration_platforms:
+      - nrf9160dk/nrf9160/ns
+    tags: ci_build sysbuild
