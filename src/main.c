@@ -9,81 +9,119 @@
 #include <zephyr/drivers/spi.h>
 
 
-#define MY_SPI_MASTER DT_NODELABEL(spi_test)
+// Exit codes
+#define SUCCESS	0
+#define FAILURE 1
+
+
+#define LOOP_SLEEP_MS   1000
+#define MY_SPI_SLAVE    DT_NODELABEL(spi_test)
+#define LED0_NODE       DT_ALIAS(led0)
+#define SPIOP           SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_OP_MODE_MASTER
+#define SPI_DEVICE      DT_NODELABEL(spi_test)
 
 static const struct spi_config spi_cfg = {
-	.operation = SPI_WORD_SET(8) | SPI_TRANSFER_MSB |
-		     SPI_MODE_CPOL | SPI_MODE_CPHA,
-	.frequency = 200000,
-	.slave = 0,
+    .operation = SPIOP,
+    .frequency = KHZ(200),
+    .cs = {
+        .gpio = GPIO_DT_SPEC_GET(SPI_DEVICE, cs_gpios),
+        .delay = 1,
+    },
 };
 
-struct device * spi_dev;
+static uint8_t tx_buffer[1];
+static uint8_t rx_buffer[1];
+static const struct device *spi_dev = DEVICE_DT_GET(MY_SPI_SLAVE);
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
-static void spi_init(void)
+static int spi_init(void)
 {
-	printk("Initializng spi device\n");
-	spi_dev = DEVICE_DT_GET(MY_SPI_MASTER);
+    printk("Initializng spi device\n");
 
-	if (spi_dev == NULL) {
-		printk("Could not get %s device\n", spi_dev);
-		return;
-	}
+    if (spi_dev == NULL) {
+        printk("Could not get %s device\n", spi_dev);
+        return FAILURE;
+    }
+
+    if (!device_is_ready(spi_dev)) {
+        printk("SPI device is not ready\n");
+        return FAILURE;
+    }
+
+    return SUCCESS;
+}
+
+static int led_init(void)
+{
+    printk("Initializing LED\n");
+    if (!gpio_is_ready_dt(&led)) {
+        printk("GPIO isn't ready\n");
+        return FAILURE;
+    }
+
+    if (gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE) < 0) {
+        printk("Unable to configure LED\n");
+        return FAILURE;
+    }
+
+    return SUCCESS;
 }
 
 void spi_test_send(void)
 {
-	int err;
-	static uint8_t tx_buffer[1];
-	static uint8_t rx_buffer[1];
+    int err;
 
-	const struct spi_buf tx_buf = {
-		.buf = tx_buffer,
-		.len = sizeof(tx_buffer)
-	};
-	const struct spi_buf_set tx = {
-		.buffers = &tx_buf,
-		.count = 1
-	};
+    const struct spi_buf tx_buf = {
+        .buf = tx_buffer,
+        .len = sizeof(tx_buffer)
+    };
+    const struct spi_buf_set tx = {
+        .buffers = &tx_buf,
+        .count = 1
+    };
 
-	struct spi_buf rx_buf = {
-		.buf = rx_buffer,
-		.len = sizeof(rx_buffer),
-	};
-	const struct spi_buf_set rx = {
-		.buffers = &rx_buf,
-		.count = 1
-	};
+    struct spi_buf rx_buf = {
+        .buf = rx_buffer,
+        .len = sizeof(rx_buffer),
+    };
+    const struct spi_buf_set rx = {
+        .buffers = &rx_buf,
+        .count = 1
+    };
 
-	err = spi_transceive(spi_dev, &spi_cfg, &tx, &rx);
-	if (err) {
-		printk("SPI error: %d\n", err);
-	} else {
-		/* Connect MISO to MOSI for loopback */
-		printk("TX sent: %x\n", tx_buffer[0]);
-		printk("RX recv: %x\n", rx_buffer[0]);
-		tx_buffer[0]++;
-	}	
+    err = spi_transceive(spi_dev, &spi_cfg, &tx, &rx);
+    if (err) {
+        printk("SPI error: %d\n", err);
+        return;
+    }
+    /* Connect MISO to MOSI for loopback */
+    printk("<- TX: %u\n", tx_buffer[0]);
+    printk("-> RX: %u\n", rx_buffer[0]);
+    tx_buffer[0]++;
 }
 
 static void print_banner(void)
 {
-	printk("******************\n");
-	printk("     SPI TEST\n");
-	printk("******************\n\n");
+    printk("******************\n");
+    printk("     SPI TEST\n");
+    printk("******************\n\n");
 }
 
 int main(void)
 {
-	print_banner();
-	spi_init();
+    print_banner();
+    if (spi_init() == FAILURE)
+        return 0;
 
-	printk("Executing main loop\n");
-	while (1) {
-		spi_test_send();
-		k_sleep(K_MSEC(1000));
-		printk(".");
-	}
+    if (led_init() == FAILURE)
+        return 0;
 
-	return 0;
+    printk("Executing main loop\n");
+    while (1) {
+        gpio_pin_toggle_dt(&led);
+        spi_test_send();
+        k_sleep(K_MSEC(1000));
+    }
+
+    return 0;
 }
