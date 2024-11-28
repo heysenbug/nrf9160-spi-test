@@ -20,6 +20,9 @@
 #define SPIOP           SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_OP_MODE_MASTER
 #define SPI_DEVICE      DT_NODELABEL(spi_test)
 
+// Panda SPI defines
+#define VERSION_DATA_LEN    24
+
 static const struct spi_config spi_cfg = {
     .operation = SPIOP,
     .frequency = KHZ(200),
@@ -29,8 +32,8 @@ static const struct spi_config spi_cfg = {
     },
 };
 
-static uint8_t tx_buffer[1];
-static uint8_t rx_buffer[1];
+static uint8_t tx_buffer[7] = "VERSION";
+static uint8_t rx_buffer[VERSION_DATA_LEN];
 static const struct device *spi_dev = DEVICE_DT_GET(MY_SPI_SLAVE);
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
@@ -89,15 +92,18 @@ void spi_test_send(void)
         .count = 1
     };
 
+    memset(rx_buffer, 0, sizeof(rx_buffer));
     err = spi_transceive(spi_dev, &spi_cfg, &tx, &rx);
-    if (err) {
+    if (err < 0) {
         printk("SPI error: %d\n", err);
         return;
     }
-    /* Connect MISO to MOSI for loopback */
-    printk("<- TX: %u\n", tx_buffer[0]);
-    printk("-> RX: %u\n", rx_buffer[0]);
-    tx_buffer[0]++;
+
+    // Received data
+    printk("(%d) ", err);
+    for (int i = 0; i < VERSION_DATA_LEN; i++)
+        printk("0x%X ", rx_buffer[i]);
+    printk("\n");
 }
 
 static void print_banner(void)
@@ -120,7 +126,7 @@ int main(void)
     while (1) {
         gpio_pin_toggle_dt(&led);
         spi_test_send();
-        k_sleep(K_MSEC(1000));
+        k_sleep(K_MSEC(LOOP_SLEEP_MS));
     }
 
     return 0;
