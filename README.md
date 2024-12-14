@@ -19,7 +19,9 @@ To flash the binary onto the board
 west flash
 ```
 
-### Pins
+## SPI
+
+SPI1 pripheral is used with a high pin drive. Make sure to set NRF to `3.3V` logic level
 
 ```
 CLK  -> P0.16
