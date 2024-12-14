@@ -52,7 +52,6 @@ int panda_read_version(void)
         LOG_ERR("spi_write() failed, err: %d", err);
         return err;
     }
-    k_msleep(10);
     err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
     if (err < 0) {
         LOG_ERR("spi_read() failed, err: %d", err);
