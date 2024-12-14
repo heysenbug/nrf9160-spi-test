@@ -1,132 +1,109 @@
 /*
-* Copyright (c) 2012-2014 Wind River Systems, Inc.
-*
-* SPDX-License-Identifier: Apache-2.0
-*/
-
+ * Copyright (c) 2024 Evercars
+ */
 #include <zephyr/kernel.h>
-#include <zephyr/sys/printk.h>
+#include <zephyr/logging/log.h>
+
+/* Include the header files for SPI, GPIO and devicetree */
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/spi.h>
 
+LOG_MODULE_REGISTER(Panda_Con, LOG_LEVEL_INF);
 
-// Exit codes
-#define SUCCESS	0
-#define FAILURE 1
+#define DELAY_VALUES    1000
+#define LED0	        13
 
+const struct gpio_dt_spec ledspec = GPIO_DT_SPEC_GET(DT_NODELABEL(led0), gpios);
 
-#define LOOP_SLEEP_MS   1000
-#define MY_SPI_SLAVE    DT_NODELABEL(spi_test)
-#define LED0_NODE       DT_ALIAS(led0)
-#define SPIOP           SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_OP_MODE_MASTER
-#define SPI_DEVICE      DT_NODELABEL(spi_test)
+/* Retrieve the API-device structure */
+#define SPIOP	    SPI_WORD_SET(8) | SPI_TRANSFER_MSB
+#define SPI_DEVICE  DT_NODELABEL(spi_master)
 
-// Panda SPI defines
-#define VERSION_DATA_LEN    24
-
+static const struct device *spi_dev = DEVICE_DT_GET(SPI_DEVICE);
 static const struct spi_config spi_cfg = {
     .operation = SPIOP,
-    .frequency = KHZ(200),
+    .frequency = (KHZ(250)),
     .cs = {
         .gpio = GPIO_DT_SPEC_GET(SPI_DEVICE, cs_gpios),
-        .delay = 1,
+        .delay = 0,
     },
 };
 
-static uint8_t tx_buffer[7] = "VERSION";
-static uint8_t rx_buffer[VERSION_DATA_LEN];
-static const struct device *spi_dev = DEVICE_DT_GET(MY_SPI_SLAVE);
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
-static int spi_init(void)
-{
-    printk("Initializng spi device\n");
-
-    if (spi_dev == NULL) {
-        printk("Could not get %s device\n", spi_dev);
-        return FAILURE;
-    }
-
-    if (!device_is_ready(spi_dev)) {
-        printk("SPI device is not ready\n");
-        return FAILURE;
-    }
-
-    return SUCCESS;
-}
-
-static int led_init(void)
-{
-    printk("Initializing LED\n");
-    if (!gpio_is_ready_dt(&led)) {
-        printk("GPIO isn't ready\n");
-        return FAILURE;
-    }
-
-    if (gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE) < 0) {
-        printk("Unable to configure LED\n");
-        return FAILURE;
-    }
-
-    return SUCCESS;
-}
-
-void spi_test_send(void)
+int panda_read_version(void)
 {
     int err;
 
-    const struct spi_buf tx_buf = {
-        .buf = tx_buffer,
-        .len = sizeof(tx_buffer)
-    };
-    const struct spi_buf_set tx = {
-        .buffers = &tx_buf,
-        .count = 1
-    };
+    /* Set the transmit and receive buffers */
+    uint8_t tx_buffer[7] = { 0x56, 0x45, 0x52, 0x53, 0x49, 0x4F, 0x4E }; // VERSION
+    // uint8_t tx_buffer[7] = { 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11 }; // VERSION
+    uint8_t rx_buffer[24] = {0};
+    struct spi_buf tx_spi_buf			= {.buf = tx_buffer, .len = sizeof(tx_buffer)};
+    struct spi_buf_set tx_spi_buf_set 	= {.buffers = &tx_spi_buf, .count = 1};
+    struct spi_buf rx_spi_bufs 			= {.buf = rx_buffer, .len = sizeof(rx_buffer)};
+    struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
 
-    struct spi_buf rx_buf = {
-        .buf = rx_buffer,
-        .len = sizeof(rx_buffer),
-    };
-    const struct spi_buf_set rx = {
-        .buffers = &rx_buf,
-        .count = 1
-    };
-
-    memset(rx_buffer, 0, sizeof(rx_buffer));
-    err = spi_transceive(spi_dev, &spi_cfg, &tx, &rx);
+    /* Call the transceive function */
+    LOG_INF("Sending %d bytes and receiving %d", sizeof(tx_buffer), sizeof(rx_buffer));
+    err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
     if (err < 0) {
-        printk("SPI error: %d\n", err);
-        return;
+        LOG_ERR("spi_write() failed, err: %d", err);
+        return err;
+    }
+    k_msleep(10);
+    err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_read() failed, err: %d", err);
+        return err;
     }
 
-    // Received data
-    printk("(%d) ", err);
-    for (int i = 0; i < VERSION_DATA_LEN; i++)
-        printk("0x%X ", rx_buffer[i]);
+    printk("(%d): ", err);
+    for (int i = 0; i < sizeof(rx_buffer); i++)
+        printk("%X ", rx_buffer[i]);
     printk("\n");
+
+    return 0;
 }
 
-static void print_banner(void)
+void print_banner(void)
 {
-    printk("******************\n");
-    printk("     SPI TEST\n");
-    printk("******************\n\n");
+    LOG_INF("***********************");
+    LOG_INF("      PANDA SPI");
+    LOG_INF("***********************");
 }
 
 int main(void)
 {
+    int err;
+    
+    err = gpio_is_ready_dt(&ledspec);
+    if (!err) {
+        LOG_ERR("Error: GPIO device is not ready, err: %d", err);
+        return 0;
+    }
+
     print_banner();
-    if (spi_init() == FAILURE)
+    /* Check if SPI and GPIO devices are ready */
+    err = device_is_ready(spi_dev);
+    if (!err) {
+        LOG_ERR("Error: SPI device is not ready, err: %d", err);
         return 0;
+    }
 
-    if (led_init() == FAILURE)
-        return 0;
+    gpio_pin_configure_dt(&ledspec, GPIO_OUTPUT_ACTIVE);
+    
+    // Get panda version
+    LOG_INF("Reading panda version...");
+    panda_read_version();
+    
+    LOG_INF("We're done.");
 
-    printk("Executing main loop\n");
-    while (1) {
-        gpio_pin_toggle_dt(&led);
-        spi_test_send();
-        k_sleep(K_MSEC(LOOP_SLEEP_MS));
+    while(1){
+        /* Continuously read sensor samples and toggle led */
+        gpio_pin_toggle_dt(&ledspec);
+        k_msleep(DELAY_VALUES);
     }
 
     return 0;
