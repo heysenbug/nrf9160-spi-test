@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2024 Evercars
  */
+
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -10,7 +11,13 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/spi.h>
 
-LOG_MODULE_REGISTER(Panda_Con, LOG_LEVEL_INF);
+/* CAF Application Event Manager Framework */
+#include <app_event_manager.h>
+
+#define MODULE main
+#include <caf/events/module_state_event.h>
+
+LOG_MODULE_REGISTER(MODULE, LOG_LEVEL_INF);
 
 #define DELAY_VALUES    1000
 #define LED0	        13
@@ -76,6 +83,12 @@ void print_banner(void)
 int main(void)
 {
     int err;
+
+    if (app_event_manager_init()) {
+        LOG_ERR("Application Event Manager not initialized");
+    } else {
+        module_set_state(MODULE_STATE_READY);
+    }
     
     err = gpio_is_ready_dt(&ledspec);
     if (!err) {
