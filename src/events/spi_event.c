@@ -2,9 +2,8 @@
 
 static void log_spi_event(const struct app_event_header *aeh)
 {
-        struct sample_event *event = cast_sample_event(aeh);
-
-        APP_EVENT_MANAGER_LOG(aeh, "comm_type=%d", event->type);
+    struct spi_event *event = cast_spi_event(aeh);
+    APP_EVENT_MANAGER_LOG(aeh, "comm_type=%d", event->type);
 }
 
 APP_EVENT_TYPE_DEFINE(spi_event,                                                    /* Unique event name. */
