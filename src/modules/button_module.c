@@ -12,7 +12,6 @@ LOG_MODULE_REGISTER(MODULE);
 
 static void button_handler(uint32_t button_states, uint32_t has_changed)
 {
-    LOG_INF("Button pressed");
     if (has_changed & button_states & DK_BTN1_MSK) {
 
         LOG_INF("Button 1 pressed");

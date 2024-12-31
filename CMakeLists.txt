@@ -15,10 +15,12 @@ target_sources(app PRIVATE src/main.c)
 
 target_sources(app PRIVATE
         src/events/spi_event.c
+        src/events/ui_terminal_event.c
 )
 
 target_sources(app PRIVATE
         src/modules/spi_module.c
+        src/modules/ui_terminal_module.c
         src/modules/button_module.c
 )
 # NORDIC SDK APP END
