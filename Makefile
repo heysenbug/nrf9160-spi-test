@@ -4,8 +4,8 @@ BUILD_DIR := $(PROJECT_DIR)/build
 BOARD := nrf9160dk_nrf9160_ns  # Replace with your board
 
 # Paths
-NRF_TOOLCHAIN := /home/abbas/Documents/toptal/evercars/nrf-connect/ncs
-NRF_UTIL := /home/abbas/.local/bin/nrfutil
+NRF_TOOLCHAIN := ../../ncs
+NRF_UTIL := ${HOME}/.local/bin/nrfutil
 # Build commake
 NRF=$(NRF_UTIL) toolchain-manager launch  --install-dir $(NRF_TOOLCHAIN) --
 

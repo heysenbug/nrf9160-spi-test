@@ -11,7 +11,8 @@ typedef enum {
     SPI_COMM_NONE = 0,
     SPI_COMM_VERSION,
     SPI_COMM_CAN,
-    SPI_COMM_HELLO
+    SPI_COMM_HELLO,
+    SPI_COMM_RECOVERY,
 } spi_comm_type;
 
 struct spi_event {

@@ -77,6 +77,18 @@ static bool parse_command(void)
 		spi_module_event->type = SPI_COMM_HELLO;
 		APP_EVENT_SUBMIT(spi_module_event);
 		return true;
+	} else if (strncmp(line_buf, "rtest", 5) == 0) {
+		struct spi_event *spi_module_event = new_spi_event();
+		__ASSERT(spi_module_event, "Not enough heap left to allocate event");
+		spi_module_event->type = SPI_COMM_RECOVERY;
+		APP_EVENT_SUBMIT(spi_module_event);
+		return true;
+	} else if (strncmp(line_buf, "can", 3) == 0) {
+		struct spi_event *spi_module_event = new_spi_event();
+		__ASSERT(spi_module_event, "Not enough heap left to allocate event");
+		spi_module_event->type = SPI_COMM_CAN;
+		APP_EVENT_SUBMIT(spi_module_event);
+		return true;
 	} else {
 		printk("Unknown command\n> ");
 	}	
@@ -129,6 +141,8 @@ static void print_help(void)
     printk("\tversion - Print Panda version\n");
     printk("\ttest - Test SPI data transfer\n");
     printk("\thello - Send a hello to Panda\n> ");
+    printk("\trtest - Perform a SPI recovery test\n> ");
+    printk("\tcan - Perform a CAN read test\n> ");
 }
 
 static int uart_init(void)
