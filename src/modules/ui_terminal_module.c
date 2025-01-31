@@ -29,29 +29,28 @@ const struct device *uart;
 static uint8_t rx_buf[RECEIVE_BUFF_SIZE] = {0};
 static uint8_t line_buf[LINE_BUFF_SIZE] = {0};
 static size_t line_buf_pos = 0;
-static bool self_disable = false;
 
-/* Function prototypes */
-static void print_help(void);
-static void enable_uart(void);
-static void disable_uart(void);
-static bool parse_command(void);
-static int uart_init(void);
-static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data);
 
-static void enable_uart(void)
+static inline int enable_uart(void)
 {
-	if (self_disable) {
-		self_disable = false;
-		printk("> ");
-	}
-	uart_rx_enable(uart, rx_buf, sizeof rx_buf, RECEIVE_TIMEOUT);
+	return uart_rx_enable(uart, rx_buf, sizeof rx_buf, RECEIVE_TIMEOUT);
 }
 
-static void disable_uart(void)
+static inline int disable_uart(void)
 {
-	self_disable = true;
-	uart_rx_disable(uart);
+	return uart_rx_disable(uart);
+}
+
+static void print_help(void)
+{
+    printk("UART Module\n");
+    printk("Commands:\n");
+    printk("\thelp - Print this help\n");
+    printk("\tversion - Print Panda version\n");
+    printk("\ttest - Test SPI data transfer\n");
+    printk("\thello - Send a hello to Panda\n ");
+    printk("\trtest - Perform a SPI recovery test\n ");
+    printk("\tcan - Perform a CAN read test\n");
 }
 
 static bool parse_command(void)
@@ -115,7 +114,7 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 			// Parse the command
 			disable_uart();
 			if (!parse_command())
-				enable_uart();
+				printk("\n> ");
         } else {
             // Store the received byte in the line buffer
             if (line_buf_pos < LINE_BUFF_SIZE - 1)
@@ -123,8 +122,6 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
         }
 		break;
 	case UART_RX_DISABLED:
-		if (self_disable)
-			return;
 		uart_rx_enable(dev, rx_buf, sizeof rx_buf, RECEIVE_TIMEOUT);
 		break;
 
@@ -133,22 +130,8 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 	}
 }
 
-static void print_help(void)
-{
-    printk("UART Module\n");
-    printk("Commands:\n");
-    printk("\thelp - Print this help\n");
-    printk("\tversion - Print Panda version\n");
-    printk("\ttest - Test SPI data transfer\n");
-    printk("\thello - Send a hello to Panda\n> ");
-    printk("\trtest - Perform a SPI recovery test\n> ");
-    printk("\tcan - Perform a CAN read test\n> ");
-}
-
 static int uart_init(void)
 {
-	int ret;
-
     uart = DEVICE_DT_GET(DT_NODELABEL(uart0));
 	/* Verify that the UART device is ready */
 	if (!device_is_ready(uart)) {
@@ -157,15 +140,13 @@ static int uart_init(void)
 	}
 
 	/* Register the UART callback function */
-	ret = uart_callback_set(uart, uart_cb, NULL);
-	if (ret) {
+	if (uart_callback_set(uart, uart_cb, NULL)) {
         LOG_ERR("Failed to set UART callback");
 		return 1;
 	}
 	/* Start receiving by calling uart_rx_enable() and pass it the address of the
 	 * receive  buffer */
-	ret = uart_rx_enable(uart, rx_buf, sizeof rx_buf, RECEIVE_TIMEOUT);
-	if (ret) {
+	if (enable_uart()) {
         LOG_ERR("Failed to enable UART RX");
 		return 1;
 	}
@@ -182,8 +163,9 @@ static bool app_event_handler(const struct app_event_header *aeh)
 
     struct ui_terminal_event *ev = cast_ui_terminal_event(aeh);
 
-    if (ev->accept_input)
-		enable_uart();
+    if (ev->accept_input) {
+		printk("\n> ");
+	}
 
     return true;
 }

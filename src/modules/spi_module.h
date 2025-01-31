@@ -1,7 +1,14 @@
 #ifndef _SPI_H_
 #define _SPI_H_
 
-/* Panda protocol defines */
+/* SPI module buffer sizes */
+#define SPI_SEND_BUF_SIZE   128
+#define SPI_RECV_BUF_SIZE   128
+
+/* Panda Defines*/
+#define PANDA_UID_LEN 12
+
+/* Panda SPI protocol defines */
 #define SPI_CHECKSUM_START  0xABU
 #define SPI_SYNC_BYTE       0x5AU
 #define SPI_HACK            0x79U
@@ -14,10 +21,7 @@
 #define SPI_ENDPOINT_CAN_WRITE  0x03U
 #define SPI_ENDPOINT_TEST       0xABU
 
-/*
- * SPI CAN Packet structure for communication with Panda
- */
-// bump this when changing the CAN packet
+/* SPI CAN Packet structure for communication with Panda */
 #define CAN_PACKET_VERSION 4
 #define CANPACKET_HEAD_SIZE 6U
 #define CANPACKET_DATA_SIZE_MAX 64U
