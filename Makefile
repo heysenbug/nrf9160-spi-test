@@ -1,7 +1,7 @@
 # Project configuration
 PROJECT_DIR := $(CURDIR)
 BUILD_DIR := $(PROJECT_DIR)/build
-BOARD := nrf9160dk_nrf9160_ns  # Replace with your board
+BOARD := nrf9160dk/nrf9160/ns  # Replace with your board
 
 # Paths
 NRF_TOOLCHAIN := ../../ncs
@@ -26,7 +26,7 @@ clean:
 
 menuconfig:
 	@echo "Running menuconfig..."
-	$(NRF) west build --sysbuild -t menuconfig -d $(BUILD_DIR)
+	$(NRF) west build --sysbuild -t menuconfig -d $(BUILD_DIR) -b $(BOARD)
 
 # Phony targets
 .PHONY: default build flash clean menuconfig
