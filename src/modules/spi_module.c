@@ -4,7 +4,9 @@
 
 #include "spi_event.h"
 #include "spi_module.h"
+#ifdef CONFIG_TERMINAL_UI
 #include "ui_terminal_event.h"
+#endif
 
 /* Include the header files for SPI, GPIO and devicetree */
 #include <zephyr/device.h>
@@ -306,10 +308,12 @@ static bool app_event_handler(const struct app_event_header *aeh)
     }
 
     // Send UART event
+#ifdef CONFIG_TERMINAL_UI
     struct ui_terminal_event *ui_terminal_event = new_ui_terminal_event();
     __ASSERT(ui_terminal_event, "Not enough heap left to allocate event");
     ui_terminal_event->accept_input = true;
     APP_EVENT_SUBMIT(ui_terminal_event);
+#endif
 
     return true;
 }

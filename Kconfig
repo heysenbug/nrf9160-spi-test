@@ -1,0 +1,17 @@
+#
+# Copyright (c) 2024 Ever Cars
+#
+
+menu "SPI Test Configuration"
+
+config TERMINAL_UI
+    bool "Enable Terminal UI"
+    default n
+    help
+        Enable this option to enable terminal UI. This will enable a minimal UI through UART.
+
+endmenu
+
+menu "Zephyr Kernel"
+source "Kconfig.zephyr"
+endmenu
