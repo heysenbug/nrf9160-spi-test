@@ -1,4 +1,4 @@
-/* STEP 2.1 - Add the SPI peripheral to spi1 */
+/* From Nordic Academy */
 &i2c0 {	status = "disabled";};
 &spi0 {	status = "disabled";};
 &i2c1 {	status = "disabled";};
