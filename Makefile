@@ -5,7 +5,7 @@ BOARD := nrf9160dk/nrf9160/ns  # Replace with your board
 
 # Paths
 NRF_TOOLCHAIN := ../../ncs
-NRF_UTIL := ${HOME}/.local/bin/nrfutil
+NRF_UTIL := nrfutil
 # Build commake
 NRF=$(NRF_UTIL) toolchain-manager launch  --install-dir $(NRF_TOOLCHAIN) --
 
