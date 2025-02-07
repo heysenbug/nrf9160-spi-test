@@ -4,6 +4,7 @@
 #include "spi_event.h"
 #include "ui_terminal_event.h"
 
+#include <stdlib.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
@@ -20,7 +21,7 @@ LOG_MODULE_REGISTER(MODULE, UART_LOG_LEVEL);
 /* Define the receiving timeout period */
 #define RECEIVE_TIMEOUT 100
 /* One entire line */
-#define LINE_BUFF_SIZE 32
+#define LINE_BUFF_SIZE 64
 
 /* Get the device pointer of the UART hardware */
 const struct device *uart;
@@ -50,7 +51,7 @@ static void print_help(void)
     printk("\ttest - Test SPI data transfer\n");
     printk("\thello - Send a hello to Panda\n ");
     printk("\trtest - Perform a SPI recovery test\n ");
-    printk("\tcan - Perform a CAN read test\n");
+    printk("\tvin <req> <resp> - Perform a VIN request\n");
 }
 
 static bool parse_command(void)
@@ -59,34 +60,37 @@ static bool parse_command(void)
 		print_help();
 		return false;
 	} else if (strncmp(line_buf, "version", 7) == 0) {
-		struct spi_event *spi_module_event = new_spi_event();
-		__ASSERT(spi_module_event, "Not enough heap left to allocate event");
-		spi_module_event->type = SPI_COMM_VERSION;
-		APP_EVENT_SUBMIT(spi_module_event);
+		struct spi_event *se = new_spi_event();
+		__ASSERT(se, "Not enough heap left to allocate event");
+		se->type = SPI_COMM_VERSION;
+		APP_EVENT_SUBMIT(se);
 		return true;
 	} else if (strncmp(line_buf, "test", 4) == 0) {
-		struct spi_event *spi_module_event = new_spi_event();
-		__ASSERT(spi_module_event, "Not enough heap left to allocate event");
-		spi_module_event->type = SPI_COMM_CAN;
-		APP_EVENT_SUBMIT(spi_module_event);
+		struct spi_event *se = new_spi_event();
+		__ASSERT(se, "Not enough heap left to allocate event");
+		se->type = SPI_COMM_CAN;
+		APP_EVENT_SUBMIT(se);
 		return true;
 	} else if (strncmp(line_buf, "hello", 5) == 0) {
-		struct spi_event *spi_module_event = new_spi_event();
-		__ASSERT(spi_module_event, "Not enough heap left to allocate event");
-		spi_module_event->type = SPI_COMM_HELLO;
-		APP_EVENT_SUBMIT(spi_module_event);
+		struct spi_event *se = new_spi_event();
+		__ASSERT(se, "Not enough heap left to allocate event");
+		se->type = SPI_COMM_HELLO;
+		APP_EVENT_SUBMIT(se);
 		return true;
 	} else if (strncmp(line_buf, "rtest", 5) == 0) {
-		struct spi_event *spi_module_event = new_spi_event();
-		__ASSERT(spi_module_event, "Not enough heap left to allocate event");
-		spi_module_event->type = SPI_COMM_RECOVERY;
-		APP_EVENT_SUBMIT(spi_module_event);
+		struct spi_event *se = new_spi_event();
+		__ASSERT(se, "Not enough heap left to allocate event");
+		se->type = SPI_COMM_RECOVERY;
+		APP_EVENT_SUBMIT(se);
 		return true;
-	} else if (strncmp(line_buf, "can", 3) == 0) {
-		struct spi_event *spi_module_event = new_spi_event();
-		__ASSERT(spi_module_event, "Not enough heap left to allocate event");
-		spi_module_event->type = SPI_COMM_CAN;
-		APP_EVENT_SUBMIT(spi_module_event);
+	} else if (strncmp(line_buf, "vin", 3) == 0) {
+		uint8_t *end;
+		struct spi_event *se = new_spi_event();
+		__ASSERT(se, "Not enough heap left to allocate event");
+		se->type = SPI_COMM_CAN;
+		se->address = strtol(&line_buf[4], &end, 16);
+		se->response = strtol(end, NULL, 16);
+		APP_EVENT_SUBMIT(se);
 		return true;
 	} else {
 		printk("Unknown command\n> ");

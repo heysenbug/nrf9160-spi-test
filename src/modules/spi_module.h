@@ -2,8 +2,8 @@
 #define _SPI_H_
 
 /* SPI module buffer sizes */
-#define SPI_SEND_BUF_SIZE   128
-#define SPI_RECV_BUF_SIZE   128
+#define SPI_SEND_BUF_SIZE   256
+#define SPI_RECV_BUF_SIZE   256
 
 /* Panda Defines*/
 #define PANDA_UID_LEN 12
