@@ -30,16 +30,20 @@ const struct device *uart;
 static uint8_t rx_buf[RECEIVE_BUFF_SIZE] = {0};
 static uint8_t line_buf[LINE_BUFF_SIZE] = {0};
 static size_t line_buf_pos = 0;
+static bool self_disable = false;
 
 
 static inline int enable_uart(void)
 {
+	self_disable = false;
 	return uart_rx_enable(uart, rx_buf, sizeof rx_buf, RECEIVE_TIMEOUT);
 }
 
 static inline int disable_uart(void)
 {
-	return uart_rx_disable(uart);
+	int ret = uart_rx_disable(uart);
+	self_disable = true;
+	return ret;
 }
 
 static void print_help(void)
@@ -119,6 +123,7 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 			disable_uart();
 			if (!parse_command())
 				printk("\n> ");
+			enable_uart();
         } else {
             // Store the received byte in the line buffer
             if (line_buf_pos < LINE_BUFF_SIZE - 1)
@@ -126,7 +131,8 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
         }
 		break;
 	case UART_RX_DISABLED:
-		uart_rx_enable(dev, rx_buf, sizeof rx_buf, RECEIVE_TIMEOUT);
+		if (!self_disable)
+			uart_rx_enable(dev, rx_buf, sizeof rx_buf, RECEIVE_TIMEOUT);
 		break;
 
 	default:
