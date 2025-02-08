@@ -13,7 +13,8 @@ typedef enum {
     SPI_COMM_CAN,
     SPI_COMM_HELLO,
     SPI_COMM_RECOVERY,
-    SPI_COMM_VIN_REQUEST
+    SPI_COMM_VIN_REQUEST,
+    SPI_COMM_CAN_SNIFF,
 } spi_comm_type;
 
 struct spi_event {

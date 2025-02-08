@@ -92,6 +92,12 @@ static bool parse_command(void)
 		se->response = strtol(end, NULL, 16);
 		APP_EVENT_SUBMIT(se);
 		return true;
+	} else if (strncmp(line_buf, "can", 3) == 0) {
+		struct spi_event *se = new_spi_event();
+		__ASSERT(se, "Not enough heap left to allocate event");
+		se->type = SPI_COMM_CAN_SNIFF;
+		APP_EVENT_SUBMIT(se);
+		return true;
 	} else {
 		printk("Unknown command\n> ");
 	}	

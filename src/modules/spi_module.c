@@ -184,17 +184,17 @@ static int spi_recovery(void)
 static int can_write(uint32_t addr)
 { 
     CANPacket_t *cpack;
-    // const int cpack_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
-    struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = sizeof(CANPacket_t) + 1};
+    const int cpack_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
+    struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = cpack_len + 1};
     struct spi_buf_set tx_spi_buf_set 	= {.buffers = &tx_spi_buf, .count = 1};
     struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = RESP_DATA_LEN};
     struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
 
     /* Set the transmit and receive buffers */
     // const int can_packet_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
-    if (send_header(SPI_ENDPOINT_CAN_WRITE, sizeof(CANPacket_t), 0) != 0)
+    if (send_header(SPI_ENDPOINT_CAN_WRITE, cpack_len, 0) != 0)
         return -1;
-    memset(send_buf, 0, sizeof(CANPacket_t) + 1);
+    memset(send_buf, 0, cpack_len + 1);
     memset(recv_buf, 0, RESP_DATA_LEN);
 
     cpack = (CANPacket_t *)send_buf;
@@ -207,8 +207,8 @@ static int can_write(uint32_t addr)
     // } else { // 11-bit identifier
     //     memcpy(cpack.data, OBDII_VIN_REQUEST, sizeof(OBDII_VIN_REQUEST));
     // }
-    send_buf[sizeof(CANPacket_t)] = calculate_checksum(send_buf, sizeof(CANPacket_t));
-    LOG_HEXDUMP_INF(send_buf, sizeof(CANPacket_t) + 1, "CAN_WRITE - TX: ");
+    send_buf[cpack_len] = calculate_checksum(send_buf, cpack_len);
+    LOG_HEXDUMP_INF(send_buf, cpack_len + 1, "CAN_WRITE - TX: ");
     int err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
     if (err < 0) {
         LOG_ERR("spi_write() failed, err: %d", err);
@@ -226,48 +226,39 @@ static int can_write(uint32_t addr)
 
 static int can_read(uint32_t addr)
 {
+    const int cpack_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
     struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = 1};
     struct spi_buf_set tx_spi_buf_set 	= {.buffers = &tx_spi_buf, .count = 1};
-    struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = RESP_CAN_READ_LEN};
+    struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = cpack_len + 4};
     struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
 
     /* Call the transceive function */
     LOG_INF("--- Sending CAN Read ---");
     CANPacket_t *can_packet = (CANPacket_t *)&recv_buf[3];
     int count = 0;
-    // while (can_packet->addr != addr && count++ < 2) {
-        if (send_header(SPI_ENDPOINT_CAN_READ, 0, sizeof(CANPacket_t)) != 0)
-            return -1;
+    if (send_header(SPI_ENDPOINT_CAN_READ, 0, cpack_len) != 0)
+        return -1;
 
-        /* Set the transmit and receive buffers */
-        memset(send_buf, 0, 1);
-        memset(recv_buf, 0, RESP_CAN_READ_LEN);
-        send_buf[0] = calculate_checksum(send_buf, 0);
-        LOG_HEXDUMP_INF(send_buf, 1, "CAN_READ - TX: ");
-        int err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
-        if (err < 0) {
-            LOG_ERR("spi_write() failed, err: %d", err);
-            return err;
-        }
-        err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
-        if (err < 0) {
-            LOG_ERR("spi_read() failed, err: %d", err);
-            return err;
-        }
-    // }
-
-    // if (count >= 1000) {
-    //     LOG_INF("Unable to get VIN response");
-    // } else {
-    //     LOG_INF("CAN Addr: 0x%X", can_packet->addr);
-    //     LOG_INF("CAN Bus: %d", can_packet->bus);
-    //     LOG_INF("CAN Data Length: %d", can_packet->data_len_code);
-    //     LOG_HEXDUMP_INF(can_packet->data, can_packet->data_len_code, "CAN Data: ");
-    // }
-    LOG_HEXDUMP_INF(recv_buf, RESP_CAN_READ_LEN, "CAN_READ - RX: ");
+    /* Set the transmit and receive buffers */
+    memset(send_buf, 0, 1);
+    memset(recv_buf, 0, cpack_len + 4);
+    send_buf[0] = calculate_checksum(send_buf, 0);
+    LOG_HEXDUMP_INF(send_buf, 1, "CAN_READ - TX: ");
+    int err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_write() failed, err: %d", err);
+        return err;
+    }
+    err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_read() failed, err: %d", err);
+        return err;
+    }
+    LOG_HEXDUMP_INF(recv_buf, cpack_len + 4, "CAN_READ - RX: ");
 
     return 0;
 }
+
 
 static int can_write_read(struct spi_event *ev)
 {
@@ -275,6 +266,41 @@ static int can_write_read(struct spi_event *ev)
         return -1;
     if (can_read(ev->response) != 0)
         return -1;
+
+    return 0;
+}
+
+static int can_sniff()
+{
+    const int cpack_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
+    struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = 1};
+    struct spi_buf_set tx_spi_buf_set 	= {.buffers = &tx_spi_buf, .count = 1};
+    struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = cpack_len + 4};
+    struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
+
+    /* Call the transceive function */
+    LOG_INF("--- Sending CAN Read ---");
+    CANPacket_t *can_packet = (CANPacket_t *)&recv_buf[3];
+    int count = 0;
+    if (send_header(SPI_ENDPOINT_CAN_READ, 0, cpack_len) != 0)
+        return -1;
+
+    /* Set the transmit and receive buffers */
+    memset(send_buf, 0, 1);
+    memset(recv_buf, 0, cpack_len + 4);
+    send_buf[0] = calculate_checksum(send_buf, 0);
+    LOG_HEXDUMP_INF(send_buf, 1, "CAN_READ - TX: ");
+    int err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_write() failed, err: %d", err);
+        return err;
+    }
+    err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_read() failed, err: %d", err);
+        return err;
+    }
+    LOG_HEXDUMP_INF(recv_buf, cpack_len + 4, "CAN_READ - RX: ");
 
     return 0;
 }
@@ -377,6 +403,10 @@ static bool app_event_handler(const struct app_event_header *aeh)
         case SPI_COMM_RECOVERY:
             LOG_INF("Performing SPI recovery test");
             spi_recovery_test();
+            break;
+        case SPI_COMM_CAN_SNIFF:
+            LOG_INF("Sniffing can bus");
+            can_sniff();
             break;
         default:
             break;
