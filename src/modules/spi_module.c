@@ -16,7 +16,7 @@
  
 #define ENABLE_TESTING
 #define MODULE          spi
-#define SPI_LOG_LEVEL   4
+#define SPI_LOG_LEVEL   LOG_LEVEL_DBG
 LOG_MODULE_REGISTER(MODULE, SPI_LOG_LEVEL);
 
 /* Retrieve the API-device structure */
@@ -35,7 +35,7 @@ static const struct spi_config spi_cfg = {
 
 static uint8_t send_buf[SPI_SEND_BUF_SIZE];
 static uint8_t recv_buf[SPI_RECV_BUF_SIZE];
-static const uint8_t test_string[] = "Hello, Panda! This is a much longer message just for funsies\n";
+static const uint8_t test_string[] = "Hello, Panda!\n";
 static const uint8_t version_string[REQ_VERSION_LEN] = "VERSION";
 
 /* CAN related */
@@ -83,7 +83,7 @@ static int send_header(uint8_t endpoint, uint16_t req_len, uint16_t resp_len)
     send_buf[6] = calculate_checksum(send_buf, 6);
 
     /* Call the transceive function */
-    LOG_INF("--- Sending header (%d) ---", req_len);
+    LOG_HEXDUMP_DBG(send_buf, 7, "HEADER: ");
     err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
     if (err < 0) {
         LOG_ERR("spi_write() failed, err: %d", err);
@@ -95,11 +95,51 @@ static int send_header(uint8_t endpoint, uint16_t req_len, uint16_t resp_len)
         return err;
     }
 
-    LOG_HEXDUMP_INF(recv_buf, RESP_HEADER_LEN, "Header Resp: ");
+    LOG_HEXDUMP_DBG(recv_buf, RESP_HEADER_LEN, "HEADER RESP: ");
 
     return 0;
 }
 
+static int set_safety_mode(uint16_t mode)
+{
+    int err;
+    ControlPacket_t *control;
+    const int send_len = sizeof(ControlPacket_t) + 1; // 1 for checksum
+
+    if (send_header(SPI_ENDPOINT_UART_WRITE, send_len - 1, 0) != 0)
+        return -1;
+
+    /* Set the transmit and receive buffers */
+    memset(send_buf, 0, send_len);
+    memset(recv_buf, 0, RESP_DATA_LEN);
+    struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = send_len};
+    struct spi_buf_set tx_spi_buf_set 	= {.buffers = &tx_spi_buf, .count = 1};
+    struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = RESP_DATA_LEN};
+    struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
+
+    // Set Data
+    control = (ControlPacket_t *)send_buf;
+    control->request = 0xDC;
+    control->param1 = mode;
+    send_buf[sizeof(ControlPacket_t)] = calculate_checksum(send_buf, sizeof(ControlPacket_t));
+
+    /* Call the transceive function */
+    LOG_HEXDUMP_DBG(send_buf, send_len, "CONTROL SEND: ");
+    err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_write() failed, err: %d", err);
+        return err;
+    }
+    err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_read() failed, err: %d", err);
+        return err;
+    }
+
+    LOG_HEXDUMP_DBG(recv_buf, RESP_DATA_LEN, "CONTROL RESP: ");
+
+    return 0;
+}
 
 static int write_to_uart(void)
 {
@@ -122,7 +162,7 @@ static int write_to_uart(void)
     send_buf[sizeof(test_string) + 1] = calculate_checksum(send_buf, sizeof(test_string) + 1);
 
     /* Call the transceive function */
-    LOG_INF("--- Sending UART Data ---");
+    LOG_HEXDUMP_DBG(send_buf, send_len, "UART SEND: ");
     err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
     if (err < 0) {
         LOG_ERR("spi_write() failed, err: %d", err);
@@ -134,7 +174,7 @@ static int write_to_uart(void)
         return err;
     }
 
-    LOG_HEXDUMP_INF(recv_buf, RESP_DATA_LEN, "Uart Write Resp: ");
+    LOG_HEXDUMP_DBG(recv_buf, RESP_DATA_LEN, "UART RESP: ");
 
     return 0;
 }
@@ -152,7 +192,7 @@ static int print_version(void)
     struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
 
     /* Call the transceive function */
-    LOG_INF("--- Sending Version ---");
+    LOG_HEXDUMP_DBG(send_buf, REQ_VERSION_LEN, "VERSION SEND: ");
     err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
     if (err < 0) {
         LOG_ERR("spi_write() failed, err: %d", err);
@@ -164,7 +204,7 @@ static int print_version(void)
         return err;
     }
 
-    LOG_HEXDUMP_INF(recv_buf, RESP_VERSION_LEN, "Version: ");
+    LOG_HEXDUMP_DBG(recv_buf, RESP_VERSION_LEN, "VERSION RESP: ");
 
     return 0;
 }
@@ -184,17 +224,17 @@ static int spi_recovery(void)
 static int can_write(uint32_t addr)
 { 
     CANPacket_t *cpack;
-    // const int cpack_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
-    struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = sizeof(CANPacket_t) + 1};
+    const int cpack_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
+    struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = cpack_len + 1};
     struct spi_buf_set tx_spi_buf_set 	= {.buffers = &tx_spi_buf, .count = 1};
     struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = RESP_DATA_LEN};
     struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
 
     /* Set the transmit and receive buffers */
     // const int can_packet_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
-    if (send_header(SPI_ENDPOINT_CAN_WRITE, sizeof(CANPacket_t), 0) != 0)
+    if (send_header(SPI_ENDPOINT_CAN_WRITE, cpack_len, 0) != 0)
         return -1;
-    memset(send_buf, 0, sizeof(CANPacket_t) + 1);
+    memset(send_buf, 0, cpack_len + 1);
     memset(recv_buf, 0, RESP_DATA_LEN);
 
     cpack = (CANPacket_t *)send_buf;
@@ -204,11 +244,9 @@ static int can_write(uint32_t addr)
     // 29-bit identifier
     if (addr >= 0x800)
         cpack->extended = 1;
-    // } else { // 11-bit identifier
-    //     memcpy(cpack.data, OBDII_VIN_REQUEST, sizeof(OBDII_VIN_REQUEST));
-    // }
-    send_buf[sizeof(CANPacket_t)] = calculate_checksum(send_buf, sizeof(CANPacket_t));
-    LOG_HEXDUMP_INF(send_buf, sizeof(CANPacket_t) + 1, "CAN_WRITE - TX: ");
+    send_buf[cpack_len] = calculate_checksum(send_buf, cpack_len);
+
+    LOG_HEXDUMP_DBG(send_buf, cpack_len + 1, "CAN_WRITE - TX: ");
     int err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
     if (err < 0) {
         LOG_ERR("spi_write() failed, err: %d", err);
@@ -219,52 +257,129 @@ static int can_write(uint32_t addr)
         LOG_ERR("spi_read() failed, err: %d", err);
         return err;
     }
-    LOG_HEXDUMP_INF(recv_buf, RESP_DATA_LEN, "CAN_WRITE - RX: ");
+    LOG_HEXDUMP_DBG(recv_buf, RESP_DATA_LEN, "CAN_WRITE - RX: ");
+    if (recv_buf[0] != SPI_DACK) {
+        LOG_ERR("Can data write couldn't be acknowledged");
+        return -1;
+    }
 
     return 0;
 }
 
-static int can_read(uint32_t addr)
+static int can_send_flow_control(uint32_t addr)
 {
+    CANPacket_t *cpack;
+    const int cpack_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
+    struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = cpack_len + 1};
+    struct spi_buf_set tx_spi_buf_set 	= {.buffers = &tx_spi_buf, .count = 1};
+    struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = RESP_DATA_LEN};
+    struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
+
+    /* Set the transmit and receive buffers */
+    // const int can_packet_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
+    if (send_header(SPI_ENDPOINT_CAN_WRITE, cpack_len, 0) != 0)
+        return -1;
+    memset(send_buf, 0, cpack_len + 1);
+    memset(recv_buf, 0, RESP_DATA_LEN);
+
+    cpack = (CANPacket_t *)send_buf;
+    cpack->addr = addr;
+    cpack->data_len_code = 8;
+    cpack->data[0] = 0x30;
+    // 29-bit identifier
+    if (addr >= 0x800)
+        cpack->extended = 1;
+    send_buf[cpack_len] = calculate_checksum(send_buf, cpack_len);
+
+    LOG_HEXDUMP_DBG(send_buf, cpack_len + 1, "CAN_WRITE - TX: ");
+    int err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_write() failed, err: %d", err);
+        return err;
+    }
+    err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_read() failed, err: %d", err);
+        return err;
+    }
+    LOG_HEXDUMP_DBG(recv_buf, RESP_DATA_LEN, "CAN_WRITE - RX: ");
+    if (recv_buf[0] != SPI_DACK) {
+        LOG_ERR("Flow control couldn't be acked");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int can_read_vin(uint32_t request, uint32_t response)
+{
+    const int cpack_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
+    uint8_t vin[17];
+    int vin_received = 0;
     struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = 1};
     struct spi_buf_set tx_spi_buf_set 	= {.buffers = &tx_spi_buf, .count = 1};
-    struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = RESP_CAN_READ_LEN};
+    struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = cpack_len + 4};
     struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
 
     /* Call the transceive function */
-    LOG_INF("--- Sending CAN Read ---");
-    CANPacket_t *can_packet = (CANPacket_t *)&recv_buf[3];
+    LOG_HEXDUMP_DBG(send_buf, 1, "CAN WRITE SEND: ");
     int count = 0;
-    // while (can_packet->addr != addr && count++ < 2) {
-        if (send_header(SPI_ENDPOINT_CAN_READ, 0, sizeof(CANPacket_t)) != 0)
+    CANPacket_t *can_packet = (CANPacket_t *)&recv_buf[3];
+    // while (count++ < 1000) {
+    LOG_INF("Attempting to sniff vin");
+    while (1) {
+        if (send_header(SPI_ENDPOINT_CAN_READ, 0, cpack_len) != 0)
             return -1;
 
         /* Set the transmit and receive buffers */
         memset(send_buf, 0, 1);
-        memset(recv_buf, 0, RESP_CAN_READ_LEN);
+        memset(recv_buf, 0, cpack_len + 4);
         send_buf[0] = calculate_checksum(send_buf, 0);
-        LOG_HEXDUMP_INF(send_buf, 1, "CAN_READ - TX: ");
+        LOG_HEXDUMP_DBG(send_buf, 1, "CAN_READ - TX: ");
         int err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
         if (err < 0) {
             LOG_ERR("spi_write() failed, err: %d", err);
             return err;
         }
-        err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
-        if (err < 0) {
-            LOG_ERR("spi_read() failed, err: %d", err);
-            return err;
+        int ack_count= 0;
+        while (ack_count++ < 50) {        
+            err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
+            if (err < 0) {
+                LOG_ERR("spi_read() failed, err: %d", err);
+                return err;
+            }
+            k_msleep(1);
+            if (recv_buf[0] == SPI_DACK)
+                break;
         }
-    // }
+        LOG_HEXDUMP_DBG(recv_buf, cpack_len + 4, "CAN_READ - RX: ");
+        if (recv_buf[0] != SPI_DACK) {
+            LOG_ERR("CAN read data couldn't be acked!");
+            return -1;
+        }
 
-    // if (count >= 1000) {
-    //     LOG_INF("Unable to get VIN response");
-    // } else {
-    //     LOG_INF("CAN Addr: 0x%X", can_packet->addr);
-    //     LOG_INF("CAN Bus: %d", can_packet->bus);
-    //     LOG_INF("CAN Data Length: %d", can_packet->data_len_code);
-    //     LOG_HEXDUMP_INF(can_packet->data, can_packet->data_len_code, "CAN Data: ");
-    // }
-    LOG_HEXDUMP_INF(recv_buf, RESP_CAN_READ_LEN, "CAN_READ - RX: ");
+        // Parse the VIN
+        if (can_packet->addr == response) {
+            // First frame, VIN is last 3 bytes
+            if (can_packet->data[0] >> 4 == 0x1 && can_packet->data[2] == 0x62) {
+                LOG_HEXDUMP_INF(recv_buf, cpack_len + 4, "CAN_READ - RX: ");
+                memcpy(vin, &can_packet->data[5], 3);
+                // Send flow control packet for rest of VIN
+                can_send_flow_control(request);
+                vin_received += 3;
+            } else if (can_packet->data[0] >> 4 == 0x2) {
+                LOG_HEXDUMP_INF(recv_buf, cpack_len + 4, "CAN_READ - RX: ");
+                int to_read = MIN((sizeof(vin) - vin_received), 7);
+                memcpy(&vin[vin_received], &can_packet->data[1], to_read);
+                vin_received += to_read;
+            }
+        }
+
+        if (vin_received == sizeof(vin))
+            break;
+    }
+
+    LOG_INF("VIN (%d): %.17s", vin_received, vin);
 
     return 0;
 }
@@ -273,8 +388,43 @@ static int can_write_read(struct spi_event *ev)
 {
     if (can_write(ev->address) != 0)
         return -1;
-    if (can_read(ev->response) != 0)
+    if (can_read_vin(ev->address, ev->response) != 0)
         return -1;
+
+    return 0;
+}
+
+static int can_read()
+{
+    const int cpack_len = sizeof(CANPacket_t) - CANPACKET_DATA_SIZE_MAX + 8;
+    struct spi_buf tx_spi_buf			= {.buf = send_buf, .len = 1};
+    struct spi_buf_set tx_spi_buf_set 	= {.buffers = &tx_spi_buf, .count = 1};
+    struct spi_buf rx_spi_bufs 			= {.buf = recv_buf, .len = cpack_len + 4};
+    struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
+
+    /* Call the transceive function */
+    LOG_INF("--- Sending CAN Read ---");
+    CANPacket_t *can_packet = (CANPacket_t *)&recv_buf[3];
+    int count = 0;
+    if (send_header(SPI_ENDPOINT_CAN_READ, 0, cpack_len) != 0)
+        return -1;
+
+    /* Set the transmit and receive buffers */
+    memset(send_buf, 0, 1);
+    memset(recv_buf, 0, cpack_len + 4);
+    send_buf[0] = calculate_checksum(send_buf, 0);
+    LOG_HEXDUMP_INF(send_buf, 1, "CAN_READ - TX: ");
+    int err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_write() failed, err: %d", err);
+        return err;
+    }
+    err = spi_read(spi_dev, &spi_cfg, &rx_spi_buf_set);
+    if (err < 0) {
+        LOG_ERR("spi_read() failed, err: %d", err);
+        return err;
+    }
+    LOG_HEXDUMP_INF(recv_buf, cpack_len + 4, "CAN_READ - RX: ");
 
     return 0;
 }
@@ -294,7 +444,7 @@ static int spi_recovery_test(void)
     struct spi_buf_set rx_spi_buf_set	= {.buffers = &rx_spi_bufs, .count = 1};
 
     /* Call the transceive function */
-    LOG_INF("--- Incomplete version read ---");
+    LOG_DBG("--- Incomplete version read ---");
     err = spi_write(spi_dev, &spi_cfg, &tx_spi_buf_set);
     if (err < 0) {
         LOG_ERR("spi_write() failed, err: %d", err);
@@ -307,11 +457,11 @@ static int spi_recovery_test(void)
     }
 
     // Read all data from SPI
-    LOG_INF("--- Recovering SPI ---");
+    LOG_DBG("--- Recovering SPI ---");
     spi_recovery();
 
     // Try to read the version
-    LOG_INF("--- Trying to read the version again ---");
+    LOG_DBG("--- Trying to read the version again ---");
     print_version();
 
     return 0;
@@ -319,7 +469,7 @@ static int spi_recovery_test(void)
 #else
 static int spi_recovery_test(void)
 {
-    LOG_INF("SPI recovery test is disabled");
+    LOG_DBG("SPI recovery test is disabled");
     return 0;
 }
 #endif
@@ -378,6 +528,13 @@ static bool app_event_handler(const struct app_event_header *aeh)
             LOG_INF("Performing SPI recovery test");
             spi_recovery_test();
             break;
+        case SPI_COMM_VIN_READ:
+            LOG_INF("Reading the VIN");
+            can_read_vin(ev->address, ev->response);
+        case SPI_COMM_CAN_READ:
+            LOG_INF("Reading from CAN");
+            set_safety_mode(SAFETY_ALLOUTPUT);
+            can_read();
         default:
             break;
     }

@@ -13,7 +13,7 @@
 #include <zephyr/drivers/uart.h>
 
 #define MODULE uart
-#define UART_LOG_LEVEL   4
+#define UART_LOG_LEVEL   LOG_LEVEL_INF
 LOG_MODULE_REGISTER(MODULE, UART_LOG_LEVEL);
 
 /* Define the size of the receive buffer */
@@ -94,6 +94,22 @@ static bool parse_command(void)
 		se->type = SPI_COMM_CAN;
 		se->address = strtol(&line_buf[4], &end, 16);
 		se->response = strtol(end, NULL, 16);
+		APP_EVENT_SUBMIT(se);
+		return true;
+	} else if (strncmp(line_buf, "read_vin", 8) == 0) {
+		uint8_t *end;
+		struct spi_event *se = new_spi_event();
+		__ASSERT(se, "Not enough heap left to allocate event");
+		se->type = SPI_COMM_VIN_READ;
+		se->response = strtol(&line_buf[4], &end, 16);
+		se->response = strtol(end, NULL, 16);
+		APP_EVENT_SUBMIT(se);
+		return true;
+	} else if (strncmp(line_buf, "can", 3) == 0) {
+		uint8_t *end;
+		struct spi_event *se = new_spi_event();
+		__ASSERT(se, "Not enough heap left to allocate event");
+		se->type = SPI_COMM_CAN_READ;
 		APP_EVENT_SUBMIT(se);
 		return true;
 	} else {

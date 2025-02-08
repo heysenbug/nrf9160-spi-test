@@ -1,6 +1,12 @@
 #ifndef _SPI_H_
 #define _SPI_H_
 
+#define MIN(a, b) ({ \
+  __typeof__ (a) _a = (a); \
+  __typeof__ (b) _b = (b); \
+  (_a < _b) ? _a : _b; \
+})
+
 /* SPI module buffer sizes */
 #define SPI_SEND_BUF_SIZE   256
 #define SPI_RECV_BUF_SIZE   256
@@ -45,5 +51,41 @@ typedef struct {
 #define RESP_HEADER_LEN     1
 #define RESP_DATA_LEN       4
 #define RESP_CAN_READ_LEN   sizeof(CANPacket_t) + 4
+
+/* Control Stuff */
+typedef struct {
+  uint8_t request;
+  uint16_t param1;
+  uint16_t param2;
+  uint16_t length;
+} __attribute__((packed)) ControlPacket_t;
+
+// from cereal.car.CarParams.SafetyModel
+#define SAFETY_SILENT 0U
+#define SAFETY_HONDA_NIDEC 1U
+#define SAFETY_TOYOTA 2U
+#define SAFETY_ELM327 3U
+#define SAFETY_GM 4U
+#define SAFETY_HONDA_BOSCH_GIRAFFE 5U
+#define SAFETY_FORD 6U
+#define SAFETY_HYUNDAI 8U
+#define SAFETY_CHRYSLER 9U
+#define SAFETY_TESLA 10U
+#define SAFETY_SUBARU 11U
+#define SAFETY_MAZDA 13U
+#define SAFETY_NISSAN 14U
+#define SAFETY_VOLKSWAGEN_MQB 15U
+#define SAFETY_ALLOUTPUT 17U
+#define SAFETY_GM_ASCM 18U
+#define SAFETY_NOOUTPUT 19U
+#define SAFETY_HONDA_BOSCH 20U
+#define SAFETY_VOLKSWAGEN_PQ 21U
+#define SAFETY_SUBARU_PREGLOBAL 22U
+#define SAFETY_HYUNDAI_LEGACY 23U
+#define SAFETY_HYUNDAI_COMMUNITY 24U
+#define SAFETY_STELLANTIS 25U
+#define SAFETY_FAW 26U
+#define SAFETY_BODY 27U
+#define SAFETY_HYUNDAI_CANFD 28U
 
 #endif /* _SPI_H_ */
