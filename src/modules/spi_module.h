@@ -1,12 +1,6 @@
 #ifndef _SPI_H_
 #define _SPI_H_
 
-#define MIN(a, b) ({ \
-  __typeof__ (a) _a = (a); \
-  __typeof__ (b) _b = (b); \
-  (_a < _b) ? _a : _b; \
-})
-
 /* SPI module buffer sizes */
 #define SPI_SEND_BUF_SIZE   256
 #define SPI_RECV_BUF_SIZE   256
